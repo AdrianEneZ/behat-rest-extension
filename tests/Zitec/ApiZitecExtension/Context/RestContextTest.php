@@ -39,35 +39,40 @@ class RestContextTest extends TestCase
     protected $restContext;
 
     /**
-     * @var MockObject
+     * @var Mink|MockObject
      */
     protected $mink;
 
     /**
-     * @var MockObject
+     * @var Parameters|MockObject
      */
     protected $parameters;
 
     /**
-     * @var MockObject
+     * @var Compare|MockObject
      */
     protected $compare;
 
     /**
-     * @var MockObject
+     * @var Storage|MockObject
      */
     protected $storage;
 
     /**
-     * @var MockObject
+     * @var Data|MockObject
      */
     protected $data;
+
+    /**
+     * @var LoadData|MockObject
+     */
+    protected $loader;
 
     /**
      * Sets up the needed properties.
      * Runs before each test is executed.
      */
-    public function setUp(): void
+    public function setUp()
     {
         $this->restContext = $this->setupRestContext();
         $this->mink = $this->getMockBuilder(Mink::class)
@@ -99,21 +104,6 @@ class RestContextTest extends TestCase
         $reflectedCompare = $reflection->getProperty('compare');
         $reflectedCompare->setAccessible(true);
         $reflectedCompare->setValue($context, $compare);
-
-        return $context;
-    }
-
-    /**
-     * @param RestContext $context
-     * @param Response $response
-     * @return RestContext
-     */
-    protected function setResponse($context, $response)
-    {
-        $reflection = new \ReflectionClass(RestContext::class);
-        $reflectedParameters = $reflection->getProperty('response');
-        $reflectedParameters->setAccessible(true);
-        $reflectedParameters->setValue($context, $response);
 
         return $context;
     }
@@ -156,10 +146,13 @@ class RestContextTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
+        $this->loader = $this->createMock(LoadData::class);
+
         $restContext->setParameters($this->parameters)
             ->setCompare($this->compare)
             ->setStorage($this->storage)
-            ->setData($this->data);
+            ->setData($this->data)
+            ->setLoader($this->loader);
 
         return $restContext;
     }
@@ -235,7 +228,6 @@ class RestContextTest extends TestCase
         $this->restContext->prepare($scope);
     }
 
-
     /**
      * @dataProvider getData
      * @param InputData $input
@@ -248,7 +240,6 @@ class RestContextTest extends TestCase
 
         $this->restContext->iSetTheRequestMethod($input->http_method);
     }
-
 
     /**
      * @dataProvider getData
@@ -589,7 +580,7 @@ class RestContextTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
-        $this->setResponse($this->restContext, $response);
+        $this->storage->method('getLastResponse')->willReturn($response);
         $content = null;
         $response->expects($this->once())
             ->method('getContent')
@@ -613,7 +604,7 @@ class RestContextTest extends TestCase
 
         $content = '{"type": "empty"}';
 
-        $this->setResponse($this->restContext, $response);
+        $this->storage->method('getLastResponse')->willReturn($response);
         $response->expects($this->at(0))
             ->method('getContent')
             ->willReturn($content);
@@ -640,7 +631,6 @@ class RestContextTest extends TestCase
         $this->restContext->checkResponseType($responseType);
     }
 
-
     /**
      * Test the check response type method when the response has been expected to be json but it's not.
      *
@@ -653,7 +643,7 @@ class RestContextTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
-        $this->setResponse($this->restContext, $response);
+        $this->storage->method('getLastResponse')->willReturn($response);
         $responseType = strtolower($inputData->json_response_type);
 
         $response->expects($this->once())
@@ -665,7 +655,6 @@ class RestContextTest extends TestCase
         $this->expectExceptionMessage(sprintf('The response is not %s', $responseType));
         $this->restContext->checkResponseType($responseType);
     }
-
 
     /**
      * Test the check response type method when the response is a valid json.
@@ -679,7 +668,7 @@ class RestContextTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
-        $this->setResponse($this->restContext, $response);
+        $this->storage->method('getLastResponse')->willReturn($response);
         $responseType = strtolower($inputData->json_response_type);
 
         $response->expects($this->once())
@@ -699,7 +688,6 @@ class RestContextTest extends TestCase
 
     }
 
-
     /**
      * Test the check response type method when the response has been expected to be json but it's empty.
      *
@@ -712,7 +700,7 @@ class RestContextTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
-        $this->setResponse($this->restContext, $response);
+        $this->storage->method('getLastResponse')->willReturn($response);
         $responseType = strtolower($inputData->json_response_type);
 
         $response->expects($this->once())
@@ -729,7 +717,6 @@ class RestContextTest extends TestCase
         $this->restContext->checkResponseType($responseType);
     }
 
-
     /**
      * Test extract access token when no auth is set.
      */
@@ -743,7 +730,7 @@ class RestContextTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
         $this->setRequest($this->restContext, $request);
-        $this->setResponse($this->restContext, $response);
+        $this->storage->method('getLastResponse')->willReturn($response);
 
         $this->parameters->expects($this->once())
             ->method('getAuthentication')
@@ -766,7 +753,7 @@ class RestContextTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
         $this->setRequest($this->restContext, $request);
-        $this->setResponse($this->restContext, $response);
+        $this->storage->method('getLastResponse')->willReturn($response);
 
         $authParams = $inputData->auth_no_secret;
 
@@ -780,7 +767,6 @@ class RestContextTest extends TestCase
         );
         $this->restContext->extractAccessTokenFromResponse();
     }
-
 
     /**
      * @dataProvider getData
@@ -798,7 +784,7 @@ class RestContextTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
         $this->setRequest($this->restContext, $request);
-        $this->setResponse($this->restContext, $response);
+        $this->storage->method('getLastResponse')->willReturn($response);
 
         $authParams = $inputData->auth_no_token;
 
@@ -825,7 +811,7 @@ class RestContextTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
-        $this->setResponse($this->restContext, $response);
+        $this->storage->method('getLastResponse')->willReturn($response);
 
         $authParams = $inputData->auth_params;
 
@@ -866,12 +852,6 @@ class RestContextTest extends TestCase
     public function testTheResponseMatchTheExpectedResponseNoResponse(InputData $inputData)
     {
         $dataSet = $inputData->dataset;
-        $responseData = $inputData->response_data;
-
-        $this->data->expects($this->once())
-            ->method('getResponseData')
-            ->with($dataSet)
-            ->willReturn($responseData);
 
         $this->compare->expects($this->exactly(0))
             ->method('matchResponse');
@@ -882,20 +862,18 @@ class RestContextTest extends TestCase
         $this->restContext->theResponseMatchTheExpectedResponse($dataSet);
     }
 
-
     /**
      * @dataProvider getData
      * @param $inputData InputData
      *
      * Test method that checks the expected structure.
      */
-    public function testTheResponseMatchTheExpectedResponse(InputData $inputData)
+    public function testTheJSONResponseMatchTheExpectedResponse(InputData $inputData)
     {
-        $response = $this->getMockBuilder(Response::class)
-            ->disableOriginalConstructor()
-            ->getMock();
+        $response = $this->createMock(Response::class);
+        $response->method('getContentType')->willReturn('json');
 
-        $this->setResponse($this->restContext, $response);
+        $this->storage->method('getLastResponse')->willReturn($response);
         $dataSet = $inputData->dataset;
         $expectedResponse = $inputData->response_data;
 
@@ -913,6 +891,54 @@ class RestContextTest extends TestCase
 
     /**
      * @dataProvider getData
+     *
+     * @param $inputData InputData
+     *
+     * Test method that checks the expected XML structure.
+     */
+    public function testTheXMLResponseMatchTheExpectedResponse(InputData $inputData)
+    {
+        $response = $this->createMock(Response::class);
+        $response->method('getContentType')->willReturn('xml');
+
+        $this->storage->method('getLastResponse')->willReturn($response);
+        $dataSet = $inputData->dataset;
+
+        $filename = 'some path to a file';
+        $this->loader->expects($this->once())->method('createAbsolutePath')->willReturn($filename);
+
+        $this->compare->expects($this->exactly(1))
+          ->method('matchXMLResponse')
+          ->with($filename, $response);
+
+        $this->restContext->theResponseMatchTheExpectedResponse($dataSet);
+    }
+
+    /**
+     * Test method that checks the expected XML structure.
+     */
+    public function testTheXMLResponseMatchTheExpectedResponseNullDataset()
+    {
+        $response = $this->createMock(Response::class);
+        $response->method('getContentType')->willReturn('xml');
+
+        $this->storage->method('getLastResponse')->willReturn($response);
+
+        $filename = 'some path to a file';
+        $this->loader->expects($this->once())->method('getLastDataset')->willReturn('dataset');
+        $this->loader->expects($this->once())
+          ->method('createAbsolutePath')->with('dataset')->willReturn($filename);
+
+        $this->compare->expects($this->exactly(1))
+          ->method('matchXMLResponse')
+          ->with($filename, $response);
+
+        $this->restContext->theResponseMatchTheExpectedResponse();
+    }
+
+    /**
+     * @dataProvider getData
+     *
      * @param $inputData InputData
      *
      * Test method that checks the expected structure when the response object is not set yet.
@@ -920,12 +946,6 @@ class RestContextTest extends TestCase
     public function testTheResponseMatchExpectedStructureNoResponse(InputData $inputData)
     {
         $dataSet = $inputData->dataset;
-        $responseData = $inputData->response_data;
-
-        $this->data->expects($this->once())
-            ->method('getResponseData')
-            ->with($dataSet)
-            ->willReturn($responseData);
 
         $this->compare->expects($this->exactly(0))
             ->method('matchStructure');
@@ -943,13 +963,12 @@ class RestContextTest extends TestCase
      *
      * Test extract access token when token name is not set.
      */
-    public function testTheResponseMatchTheStructureResponse(InputData $inputData)
+    public function testJsonTheResponseMatchTheStructureResponse(InputData $inputData)
     {
-        $response = $this->getMockBuilder(Response::class)
-            ->disableOriginalConstructor()
-            ->getMock();
+        $response = $this->createMock(Response::class);
+        $response->method('getContentType')->willReturn('json');
 
-        $this->setResponse($this->restContext, $response);
+        $this->storage->method('getLastResponse')->willReturn($response);
         $dataSet = $inputData->dataset;
         $expectedResponse = $inputData->response_data;
 
@@ -967,6 +986,56 @@ class RestContextTest extends TestCase
 
     /**
      * @dataProvider getData
+     *
+     * @param $inputData InputData
+     *
+     * Test method that checks the expected XML response.
+     */
+    public function testTheXMLResponseMatchTheStructureResponse(InputData $inputData)
+    {
+        $response = $this->createMock(Response::class);
+        $response->method('getContentType')->willReturn('xml');
+
+        $this->storage->method('getLastResponse')->willReturn($response);
+        $dataSet = $inputData->dataset;
+
+        $filename = 'some path to a file';
+        $this->loader->expects($this->never())->method('getLastDataset');
+        $this->loader->expects($this->once())
+          ->method('createAbsolutePath')->with($dataSet)->willReturn($filename);
+
+        $this->compare->expects($this->exactly(1))
+          ->method('matchXMLStructure')
+          ->with($filename, $response);
+
+        $this->restContext->theResponseMatchExpectedStructure($dataSet);
+    }
+
+    /**
+     * As the method name says.
+     */
+    public function testTheXMLResponseMatchTheStructureResponseNullDataset()
+    {
+        $response = $this->createMock(Response::class);
+        $response->method('getContentType')->willReturn('xml');
+
+        $this->storage->method('getLastResponse')->willReturn($response);
+
+        $filename = 'some path to a file';
+        $this->loader->expects($this->once())->method('getLastDataset')->willReturn('dataset');
+        $this->loader->expects($this->once())
+          ->method('createAbsolutePath')->with('dataset')->willReturn($filename);
+
+        $this->compare->expects($this->exactly(1))
+          ->method('matchXMLStructure')
+          ->with($filename, $response);
+
+        $this->restContext->theResponseMatchExpectedStructure();
+    }
+
+    /**
+     * @dataProvider getData
+     *
      * @param InputData $inputData
      */
     public function testISaveTheAs(InputData $inputData)
@@ -975,7 +1044,7 @@ class RestContextTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
-        $this->setResponse($this->restContext, $response);
+        $this->storage->method('getLastResponse')->willReturn($response);
 
         $jsonResponse = $this->getMockBuilder(Json::class)
             ->disableOriginalConstructor()
@@ -1028,7 +1097,7 @@ class RestContextTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
-        $this->setResponse($this->restContext, $response);
+        $this->storage->method('getLastResponse')->willReturn($response);
 
         $jsonResponse = $this->getMockBuilder(Json::class)
             ->disableOriginalConstructor()
@@ -1051,7 +1120,6 @@ class RestContextTest extends TestCase
         $name = $inputData->name_to_save;
         $this->restContext->iSaveTheAs($index, $name);
     }
-
 
     /**
      * Test method that makes a request by replacing the placeholder in the request url with a stored value,
@@ -1096,7 +1164,7 @@ class RestContextTest extends TestCase
     public function testSetStoredValueInDataSet(InputData $inputData)
     {
         $storedKey = $inputData->stored_key;
-        $dataSet = $inputData->data_set;
+        $dataSet = $inputData->dataset;
         $dataSetKey = $inputData->data_set_key;
         $value = $inputData->stored_value;
         $this->storage->expects($this->once())
@@ -1177,7 +1245,7 @@ class RestContextTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
-        $this->setResponse($this->restContext, $response);
+        $this->storage->method('getLastResponse')->willReturn($response);
         $response->expects($this->once())
             ->method('getHeader')
             ->with('Location')
@@ -1210,9 +1278,9 @@ class RestContextTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
+        $this->storage->method('getLastResponse')->willReturn($response);
         $this->setupContext($mockContext, $this->parameters, $this->storage, $this->data, $this->compare);
 
-        $this->setResponse($mockContext, $response);
         $mockContext->setMink($this->mink);
 
         $mockContext->expects($this->once())
@@ -1229,7 +1297,6 @@ class RestContextTest extends TestCase
         );
         $mockContext->checkLocationHeader(200);
     }
-
 
     /**
      * Test method that checks the location header when the status code received when
@@ -1253,9 +1320,9 @@ class RestContextTest extends TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
+        $this->storage->method('getLastResponse')->willReturn($response);
         $this->setupContext($mockContext, $this->parameters, $this->storage, $this->data, $this->compare);
 
-        $this->setResponse($mockContext, $response);
         $mockContext->setMink($this->mink);
 
         $mockContext->expects($this->once())
