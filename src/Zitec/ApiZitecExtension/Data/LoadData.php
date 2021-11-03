@@ -123,12 +123,16 @@ class LoadData
             throw new \Exception("Dataset \"{$dataSet}\" not found in request section from the data file.");
         }
 
-        if (!array_key_exists('get', $requestData[$dataSet])) {
-            $data['get'] = array();
+        if ((is_array($requestData[$dataSet]) && !array_key_exists('get', $requestData[$dataSet])) ||
+            (is_object($requestData[$dataSet]) && property_exists($requestData[$dataSet], 'get'))
+        ) {
+            $data['get'] = [];
         }
 
-        if (!array_key_exists('post', $requestData[$dataSet])) {
-            $data['post'] = array();
+        if ((is_array($requestData[$dataSet]) && !array_key_exists('post', $requestData[$dataSet])) ||
+            (is_object($requestData[$dataSet]) && property_exists($requestData[$dataSet], 'post'))
+        ) {
+            $data['post'] = [];
         }
 
         if (empty($data['get']) && empty($data['post'])) {
